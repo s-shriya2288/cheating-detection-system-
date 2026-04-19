@@ -185,9 +185,16 @@ function increaseSuspicion(amount, reason) {
 function triggerRoomScan(reason) {
     isScanningRoom = true;
     examContainer.classList.add('blurred');
+    
+    strikes++;
+    if (strikes >= MAX_STRIKES) {
+        terminateExam("Auto-terminated due to maximum security violations (3/3). Your exam session is nullified.");
+        return;
+    }
+    
     roomScanModal.classList.remove('hidden');
-    scanReason.innerText = `Suspicion maxed out due to: ${reason}`;
-    addLog(`ROOM SCAN MANDATE ENFORCED.`, true);
+    scanReason.innerHTML = `Suspicion maxed out due to: ${reason}<br><br><span style="color:var(--danger); font-weight:800; font-size:1.3rem;">⚠️ THIS IS STRIKE ${strikes} OF 3.</span>`;
+    addLog(`ROOM SCAN MANDATE ENFORCED (Strike ${strikes}).`, true);
     setUISystemStatus(true, "Scan Required");
 }
 
@@ -226,7 +233,7 @@ function completeRoomScan() {
     
     roomScanModal.classList.add('hidden');
     examContainer.classList.remove('blurred');
-    addLog("ROOM SCAN APPROVED. Max Security logic resuming.");
+    addLog(`ROOM SCAN APPROVED. Strike ${strikes}/3 recorded. Resuming security...`);
     setUISystemStatus(false);
 }
 
@@ -251,6 +258,16 @@ function terminateExam(reasonString) {
     const stream = videoElement.srcObject;
     if (stream) stream.getTracks().forEach(track => track.stop());
     if (audioContext) audioContext.close();
+
+    // Notify OS directly
+    if (Notification.permission === "granted") {
+        new Notification("🚨 EXAM TERMINATED 🚨", {
+            body: "You have exceeded the maximum allowed mistakes (3/3). The test has been automatically ended.",
+            icon: "https://cdn-icons-png.flaticon.com/512/564/564619.png"
+        });
+    } else {
+        alert("🚨 EXAM TERMINATED: You have made 3 mistakes. The test has ended automatically and the authority is notified.");
+    }
 }
 
 // Trigger Hard Cheating Violation (Dom events)
@@ -442,6 +459,7 @@ camera.start();
 
 startBtn.addEventListener('click', async () => {
     try {
+        if ("Notification" in window) await Notification.requestPermission();
         await activateAudioSurveillance(); // Hooks mic
         if (document.documentElement.requestFullscreen) {
             await document.documentElement.requestFullscreen();
@@ -451,6 +469,6 @@ startBtn.addEventListener('click', async () => {
         addLog('Environment verified. Max Security lock engaged.');
         startTimer();
     } catch (err) {
-        alert("Fullscreen and Mic bounds are strictly enforced!");
+        alert("Fullscreen, Mic, and Notification bounds are strictly enforced!");
     }
 });
