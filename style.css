@@ -52,6 +52,10 @@ body {
     pointer-events: none;
 }
 
+.hidden {
+    display: none !important;
+}
+
 .exam-header {
     display: flex;
     justify-content: space-between;
@@ -140,8 +144,9 @@ body {
 }
 
 .difficulty-medium {
-    background: rgba(245, 158, 11, 0.2);
-    color: var(--warning);
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+    animation: flash 3s infinite;
 }
 
 .q-text {
@@ -307,11 +312,10 @@ body {
     border: 2px solid var(--border);
 }
 
-#video-stream {
+#output_canvas {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: scaleX(-1);
 }
 
 .video-wrapper .overlay {
@@ -328,10 +332,6 @@ body {
     backdrop-filter: blur(4px);
 }
 
-.video-wrapper .overlay.hidden {
-    display: none;
-}
-
 .warning-icon {
     font-size: 3rem;
     margin-bottom: 10px;
@@ -343,6 +343,32 @@ body {
     font-size: 1.2rem;
     color: white;
     text-transform: uppercase;
+}
+
+/* Loader Box */
+.loader-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.spinner {
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 .status-pill {
@@ -464,10 +490,6 @@ ul#log-list li.alert-log {
     z-index: 1000;
     background: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(8px);
-}
-
-.modal.hidden {
-    display: none;
 }
 
 .modal-content {

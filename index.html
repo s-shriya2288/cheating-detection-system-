@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProctorGuard™ - Vercel Edge AI Exam System</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- MediaPipe Client-Side Libraries (Vercel Compatible) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="exam-container" id="exam-container">
+        <!-- Dashboard Header -->
+        <header class="exam-header">
+            <div class="logo">ProctorGuar<span class="highlight">d</span>™ <span style="font-size: 0.6em; color: var(--text-muted); background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left:10px;">EDGE AI</span></div>
+            <div class="header-center">
+               <div class="timer">Time Remaining: <span id="time" class="pulse-text">02:00</span></div>
+            </div>
+            <div class="user-info">Candidate: Shrivastav_S</div>
+        </header>
+
+        <!-- Main Content Layout -->
+        <div class="layout">
+            <!-- Questions Area -->
+            <main class="question-area">
+                <div class="question-card glass-panel" id="quiz-panel">
+                    <div class="q-header">
+                        <span class="q_num">Question 1 <span class="dim">of 50</span></span>
+                        <div class="q-badges">
+                            <span class="badge">Computer Science</span>
+                            <span class="badge difficulty-medium">Strict Proctoring Active</span>
+                        </div>
+                    </div>
+                    
+                    <h2 class="q-text">In a distributed computing system, which consensus algorithm is primarily used to manage a replicated log?</h2>
+                    
+                    <div class="options">
+                        <label class="option">
+                            <input type="radio" name="q1"> 
+                            <span class="custom-radio"></span>
+                            <span class="opt-text">(A) Paxos</span>
+                        </label>
+                        <label class="option">
+                            <input type="radio" name="q1"> 
+                            <span class="custom-radio"></span>
+                            <span class="opt-text">(B) Raft</span>
+                        </label>
+                        <label class="option">
+                            <input type="radio" name="q1"> 
+                            <span class="custom-radio"></span>
+                            <span class="opt-text">(C) MapReduce</span>
+                        </label>
+                        <label class="option">
+                            <input type="radio" name="q1"> 
+                            <span class="custom-radio"></span>
+                            <span class="opt-text">(D) K-Means</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- End Screen / Lock Out Panel -->
+                <div class="question-card glass-panel hidden" id="end-panel" style="justify-content: center; align-items: center; text-align: center;">
+                    <div style="font-size: 4rem; margin-bottom: 20px;">🛡️</div>
+                    <h2 class="alert-text error-heading" style="font-size: 2.5rem;">EXAM TERMINATED</h2>
+                    <p id="termination-reason" style="margin-top:20px; font-size:1.2rem; color: var(--text-muted); padding: 0 40px;"></p>
+                </div>
+                
+                <div class="controls" id="quiz-controls">
+                    <button class="btn secondary" id="prev-btn">Previous</button>
+                    <button class="btn primary glow-effect" id="next-btn">Submit & Next</button>
+                </div>
+            </main>
+
+            <!-- Proctoring Sidebar -->
+            <aside class="proctor-panel">
+                <div class="panel-section video-section glass-panel">
+                    <div class="section-header">
+                        <h3>Live Edge AI Proctor</h3>
+                        <span class="live-badge">LIVE</span>
+                    </div>
+                    <div class="video-wrapper">
+                        <!-- Client-side Video Canvas for MediaPipe -->
+                        <video id="input_video" class="hidden" autoplay playsinline></video>
+                        <canvas id="output_canvas" width="640" height="480"></canvas>
+                        
+                        <div id="ui-warning-overlay" class="overlay hidden">
+                            <div class="warning-icon">👁️</div>
+                            <div id="ui-warning-text">Violation</div>
+                        </div>
+                    </div>
+                    <!-- Loading state for models -->
+                    <div id="model-loader" class="loader-box">
+                        <div class="spinner"></div>
+                        <span>Initializing Browser AI...</span>
+                    </div>
+                    <div id="status-indicator" class="status-pill safe hidden">
+                        <div class="pulse-dot"></div>
+                        <span id="status-text">System Active - Monitoring</span>
+                    </div>
+                </div>
+
+                <div class="panel-section logs-section glass-panel">
+                    <h3>Anomaly Logs</h3>
+                    <ul id="log-list">
+                        <li><span class="time">Sys</span> Application mounted.</li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+    </div>
+    
+    <!-- Cheating warning modal (3 Strikes) -->
+    <div id="violation-modal" class="modal hidden">
+        <div class="modal-content glass-panel error-panel">
+            <h2 class="alert-text">⚠️ SECURITY VIOLATION DETECTED ⚠️</h2>
+            <p id="modal-violation-reason">You have switched tabs or lost window focus!</p>
+            <p class="penalty-text" id="strike-text">Strike 1 of 3. Continued violations will result in auto-termination of the exam.</p>
+            <button id="resume-btn" class="btn primary btn-large">Acknowledge & Return</button>
+        </div>
+    </div>
+    
+    <!-- Setup modal for Fullscreen -->
+    <div id="setup-modal" class="modal">
+        <div class="modal-content glass-panel">
+            <div class="logo" style="margin-bottom: 20px;">ProctorGuar<span class="highlight">d</span>™</div>
+            <h2>Welcome to Secure Assessment</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">This exam requires strict proctoring and runs entirely in your browser using Edge AI. <b>No video is uploaded to the server</b>, ensuring total privacy while maintaining maximum academic integrity.</p>
+            <ul class="req-list">
+                <li>👁️ <b>Eye Tracking Active</b> (Do not look away)</li>
+                <li>🎯 <b>Face Tracking Active</b> (Stay in frame)</li>
+                <li>🔒 <b>Window Lockdown</b> (3 strikes max)</li>
+                <li>⏱️ <b>2 Minute Rapid Timer limit</b></li>
+            </ul>
+            <button id="start-exam-btn" class="btn primary btn-large" disabled style="background: var(--secondary); cursor: not-allowed;">Loading Neural Networks...</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
