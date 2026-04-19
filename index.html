@@ -13,6 +13,10 @@
     <!-- MediaPipe Client-Side Libraries (Vercel Compatible) -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    
+    <!-- TensorFlow JS & COCO SSD for Advanced Object Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="exam-container" id="exam-container">
@@ -33,8 +37,8 @@
                     <div class="q-header">
                         <span class="q_num">Question 1 <span class="dim">of 50</span></span>
                         <div class="q-badges">
-                            <span class="badge">Computer Science</span>
-                            <span class="badge difficulty-medium">Strict Proctoring Active</span>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--primary);">Object Tracking Active</span>
+                            <span class="badge difficulty-medium">Strict Proctoring Mode</span>
                         </div>
                     </div>
                     
@@ -84,7 +88,7 @@
                         <span class="live-badge">LIVE</span>
                     </div>
                     <div class="video-wrapper">
-                        <!-- Client-side Video Canvas for MediaPipe -->
+                        <!-- Client-side Video Canvas for MediaPipe & TensorFlow -->
                         <video id="input_video" class="hidden" autoplay playsinline></video>
                         <canvas id="output_canvas" width="640" height="480"></canvas>
                         
@@ -93,10 +97,21 @@
                             <div id="ui-warning-text">Violation</div>
                         </div>
                     </div>
+                    
+                    <div class="suspicion-meter" style="margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 5px;">
+                            <span>Suspicion Threshold</span>
+                            <span id="suspicion-percent">0%</span>
+                        </div>
+                        <div class="progress-bar-bg" style="height: 6px; border-radius: 4px; background: rgba(255,255,255,0.1);">
+                            <div id="suspicion-fill" style="height: 100%; border-radius: 4px; background: var(--success); width: 0%; transition: all 0.3s ease;"></div>
+                        </div>
+                    </div>
+
                     <!-- Loading state for models -->
                     <div id="model-loader" class="loader-box">
                         <div class="spinner"></div>
-                        <span>Initializing Browser AI...</span>
+                        <span id="loader-text">Loading FaceMesh...</span>
                     </div>
                     <div id="status-indicator" class="status-pill safe hidden">
                         <div class="pulse-dot"></div>
@@ -123,18 +138,40 @@
             <button id="resume-btn" class="btn primary btn-large">Acknowledge & Return</button>
         </div>
     </div>
+
+    <!-- Room Scan Required Modal -->
+    <div id="room-scan-modal" class="modal hidden" style="z-index: 2000;">
+        <div class="modal-content glass-panel error-panel" style="border-color: var(--warning); box-shadow: 0 0 40px rgba(245, 158, 11, 0.4);">
+            <div style="font-size: 3rem; margin-bottom: 10px;">📸</div>
+            <h2 style="color: var(--warning);">ENVIRONMENT SCAN REQUIRED</h2>
+            <p id="scan-reason">High suspicion threshold reached.</p>
+            <p style="margin-top: 15px; font-weight: 500; font-size: 1.1rem; line-height: 1.5;">
+                Due to recent anomalies (such as detecting a phone, book, or prolonged eye movements), you must prove the integrity of your environment.
+                <br><br>
+                Please pick up your webcam or laptop and <b>slowly pan it 360-degrees around your entire desk and room setup.</b>
+            </p>
+            
+            <div class="scan-progress-container" style="margin-top:25px;">
+                <div class="progress-bar-bg" style="width: 100%; height: 12px; background: rgba(0,0,0,0.5); border-radius: 6px; overflow: hidden;">
+                    <div id="scan-progress-bar" style="width: 0%; height: 100%; background: var(--warning); transition: width 1s linear;"></div>
+                </div>
+                <p id="scan-timer-text" style="margin-top:10px; font-weight: bold; font-size: 1.2rem; color: var(--warning);">Preparing...</p>
+            </div>
+            <button id="start-scan-btn" class="btn secondary btn-large glow-effect" style="margin-top: 20px;">Begin 15-Second Room Scan</button>
+        </div>
+    </div>
     
     <!-- Setup modal for Fullscreen -->
     <div id="setup-modal" class="modal">
         <div class="modal-content glass-panel">
             <div class="logo" style="margin-bottom: 20px;">ProctorGuar<span class="highlight">d</span>™</div>
             <h2>Welcome to Secure Assessment</h2>
-            <p style="color: var(--text-muted); margin-bottom: 20px;">This exam requires strict proctoring and runs entirely in your browser using Edge AI. <b>No video is uploaded to the server</b>, ensuring total privacy while maintaining maximum academic integrity.</p>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">This exam requires strict proctoring and runs entirely in your browser using Edge AI.</p>
             <ul class="req-list">
-                <li>👁️ <b>Eye Tracking Active</b> (Do not look away)</li>
-                <li>🎯 <b>Face Tracking Active</b> (Stay in frame)</li>
+                <li>📱 <b>Object Tracking</b> (Phones and books flag instantly)</li>
+                <li>👁️ <b>Eye Tracking Active</b> (Do not stare off-screen)</li>
+                <li>📸 <b>Room Scans</b> (May randomly trigger if suspicious)</li>
                 <li>🔒 <b>Window Lockdown</b> (3 strikes max)</li>
-                <li>⏱️ <b>2 Minute Rapid Timer limit</b></li>
             </ul>
             <button id="start-exam-btn" class="btn primary btn-large" disabled style="background: var(--secondary); cursor: not-allowed;">Loading Neural Networks...</button>
         </div>

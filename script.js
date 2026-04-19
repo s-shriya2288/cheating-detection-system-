@@ -3,25 +3,41 @@ let examActive = false;
 let strikes = 0;
 const MAX_STRIKES = 3;
 
+// Suspicion Logic
+let suspicionScore = 0; // 0 to 100
+let isScanningRoom = false;
+let objectDetectionFrameCount = 0;
+
 // DOM Elements
 const examContainer = document.getElementById('exam-container');
 const setupModal = document.getElementById('setup-modal');
 const violationModal = document.getElementById('violation-modal');
+const roomScanModal = document.getElementById('room-scan-modal');
+
 const startBtn = document.getElementById('start-exam-btn');
 const resumeBtn = document.getElementById('resume-btn');
+const startScanBtn = document.getElementById('start-scan-btn');
+
 const uiWarningOverlay = document.getElementById('ui-warning-overlay');
 const uiWarningText = document.getElementById('ui-warning-text');
 const statusPill = document.getElementById('status-indicator');
 const statusText = document.getElementById('status-text');
 const logList = document.getElementById('log-list');
+
 const modalReason = document.getElementById('modal-violation-reason');
+const scanReason = document.getElementById('scan-reason');
 const strikeText = document.getElementById('strike-text');
+
 const modelLoader = document.getElementById('model-loader');
+const loaderText = document.getElementById('loader-text');
 
 const quizPanel = document.getElementById('quiz-panel');
 const endPanel = document.getElementById('end-panel');
 const termReason = document.getElementById('termination-reason');
 const quizControls = document.getElementById('quiz-controls');
+
+const suspicionPercent = document.getElementById('suspicion-percent');
+const suspicionFill = document.getElementById('suspicion-fill');
 
 // Video elements
 const videoElement = document.getElementById('input_video');
@@ -34,7 +50,7 @@ let timerInterval;
 
 function startTimer() {
     timerInterval = setInterval(() => {
-        if(!examActive) return;
+        if(!examActive || isScanningRoom) return; // Pause timer during room scan? Optional, let's let it run but UI says something.
         timeLeft--;
         
         if (timeLeft <= 0) {
@@ -56,7 +72,7 @@ function addLog(message, isAlert = false) {
     const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
     if (isAlert) li.className = 'alert-log';
     li.innerHTML = `<span class="time">${timeStr}</span> ${message}`;
-    logList.prepend(li); // add to top
+    logList.prepend(li);
 }
 
 function setUISystemStatus(isDanger, text) {
@@ -67,8 +83,81 @@ function setUISystemStatus(isDanger, text) {
         statusText.innerText = text || "System Alert!";
     } else {
         statusPill.className = "status-pill safe";
-        statusText.innerText = text || "System Active - Eye Tracking On";
+        statusText.innerText = text || "System Active - AI Tracking On";
     }
+}
+
+// Suspicion Logic & Room Scan
+function increaseSuspicion(amount, reason) {
+    if (isScanningRoom || !examActive) return;
+    
+    suspicionScore += amount;
+    if (suspicionScore > 100) suspicionScore = 100;
+    
+    suspicionPercent.innerText = `${suspicionScore}%`;
+    suspicionFill.style.width = `${suspicionScore}%`;
+    
+    if (suspicionScore < 50) {
+        suspicionFill.style.background = 'var(--success)';
+    } else if (suspicionScore < 80) {
+        suspicionFill.style.background = 'var(--warning)';
+    } else {
+        suspicionFill.style.background = 'var(--danger)';
+    }
+
+    addLog(`SUSPICION INCREASED [+${amount}%]: ${reason}`, true);
+    
+    if (suspicionScore === 100) {
+        triggerRoomScan(reason);
+    }
+}
+
+function triggerRoomScan(reason) {
+    isScanningRoom = true;
+    examContainer.classList.add('blurred');
+    roomScanModal.classList.remove('hidden');
+    scanReason.innerText = `Suspicion maxed out due to: ${reason}`;
+    addLog(`ROOM SCAN MANDATED: Threshold reached.`, true);
+    setUISystemStatus(true, "Scan Required");
+}
+
+let scanTimer;
+startScanBtn.addEventListener('click', () => {
+    startScanBtn.disabled = true;
+    startScanBtn.innerText = "Scanning Environment...";
+    
+    const pb = document.getElementById('scan-progress-bar');
+    const pt = document.getElementById('scan-timer-text');
+    let scanTimeLeft = 15;
+    
+    scanTimer = setInterval(() => {
+        scanTimeLeft--;
+        pt.innerText = `${scanTimeLeft}s remaining. Keep panning the camera.`;
+        pb.style.width = `${((15 - scanTimeLeft) / 15) * 100}%`;
+        
+        if (scanTimeLeft <= 0) {
+            clearInterval(scanTimer);
+            completeRoomScan();
+        }
+    }, 1000);
+});
+
+function completeRoomScan() {
+    isScanningRoom = false;
+    suspicionScore = 0; // Reset suspicion after scan
+    suspicionPercent.innerText = "0%";
+    suspicionFill.style.width = "0%";
+    suspicionFill.style.background = 'var(--success)';
+    document.getElementById('scan-progress-bar').style.width = "0%";
+    document.getElementById('scan-timer-text').innerText = "Preparing...";
+    
+    startScanBtn.disabled = false;
+    startScanBtn.innerText = "Begin 15-Second Room Scan";
+    
+    roomScanModal.classList.add('hidden');
+    examContainer.classList.remove('blurred');
+    addLog("ROOM SCAN COMPLETE. Exam resuming.");
+    setUISystemStatus(false);
 }
 
 // Terminate Exam (Lock out of everything)
@@ -80,6 +169,7 @@ function terminateExam(reasonString) {
     }
     
     violationModal.classList.add('hidden');
+    roomScanModal.classList.add('hidden');
     examContainer.classList.remove('blurred');
     quizPanel.classList.add('hidden');
     quizControls.classList.add('hidden');
@@ -88,16 +178,13 @@ function terminateExam(reasonString) {
     addLog(`EXAM LOCKED: ${reasonString}`, true);
     setUISystemStatus(true, "Exam Over");
     
-    // Stop camera
     const stream = videoElement.srcObject;
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-    }
+    if (stream) stream.getTracks().forEach(track => track.stop());
 }
 
-// Trigger Cheating Violation
+// Trigger Hard Cheating Violation (Dom events)
 function triggerViolation(code, msg) {
-    if (!examActive) return;
+    if (!examActive || isScanningRoom) return; 
     strikes++;
     addLog(`STRIKE ${strikes}/${MAX_STRIKES} [${code}]: ${msg}`, true);
     
@@ -114,23 +201,16 @@ function triggerViolation(code, msg) {
     setUISystemStatus(true, "Violation Logged");
 }
 
-// Tab/Browser Out-of-focus Monitoring
 document.addEventListener("visibilitychange", () => {
-    if (examActive && document.visibilityState === 'hidden') {
-        triggerViolation("TAB_SWITCH", "You switched tabs or minimized the browser.");
-    }
+    if (examActive && document.visibilityState === 'hidden') triggerViolation("TAB_SWITCH", "You switched tabs or minimized the browser.");
 });
 
 window.addEventListener("blur", () => {
-    if (examActive) {
-        triggerViolation("WINDOW_BLUR", "You clicked outside the exam window.");
-    }
+    if (examActive && !isScanningRoom) triggerViolation("WINDOW_BLUR", "You clicked outside the exam window.");
 });
 
 document.addEventListener("fullscreenchange", () => {
-    if (examActive && !document.fullscreenElement) {
-        triggerViolation("FULLSCREEN_EXIT", "You attempted to exit fullscreen mode.");
-    }
+    if (examActive && !document.fullscreenElement && !isScanningRoom) triggerViolation("FULLSCREEN_EXIT", "You attempted to exit fullscreen mode.");
 });
 
 resumeBtn.addEventListener('click', async () => {
@@ -147,47 +227,99 @@ resumeBtn.addEventListener('click', async () => {
     }
 });
 
-// MEDIA PIPE CLIENT-SIDE AI (Face & Eye tracking)
-const faceMesh = new FaceMesh({locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
-}});
-
-faceMesh.setOptions({
-    maxNumFaces: 2,
-    refineLandmarks: true, // Enables highly accurate Iris detection
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-});
-
+// MULTI-MODEL AI PIPELINE
+let isTfReady = false;
+let cocoModel = null;
 let currentAIWarning = "";
 let aiWarningDebounce = 0;
+let modelsLoadedCount = 0;
 
-faceMesh.onResults((results) => {
-    // Enable start button on first frame
-    if (startBtn.disabled) {
+function checkAllModelsLoaded() {
+    modelsLoadedCount++;
+    if (modelsLoadedCount === 2) {
         startBtn.disabled = false;
         startBtn.innerText = "Enter Secure Fullscreen & Start";
         startBtn.style.background = 'var(--primary)';
         startBtn.style.cursor = 'pointer';
         startBtn.classList.add('glow-effect');
         modelLoader.classList.add('hidden');
-        setUISystemStatus(false, "System Ready");
+        setUISystemStatus(false, "System Ready (Face + Object Tracking)");
+    } else {
+        loaderText.innerText = "Loading Object Detection Pipeline...";
+    }
+}
+
+// 1. TensorFlow COCO-SSD for Phones/Books
+cocoSsd.load().then(model => {
+    cocoModel = model;
+    isTfReady = true;
+    console.log("COCO-SSD Loaded");
+    checkAllModelsLoaded();
+});
+
+// 2. MediaPipe FaceMesh for Eye Tracking
+const faceMesh = new FaceMesh({locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+}});
+
+faceMesh.setOptions({
+    maxNumFaces: 2,
+    refineLandmarks: true, 
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+});
+
+faceMesh.onResults((results) => {
+    if (!startBtn.disabled && modelsLoadedCount < 2) {
+        // Just in case MediaPipe loads first but TF hasn't yet, we defer the count logic
+        checkAllModelsLoaded(); // FaceMesh doesn't have a strict load() promise, the first frame means it's ready.
     }
 
-    // Draw video to canvas
+    // Draw video to canvas (Mirrored)
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-    
-    // Check if image exists before drawing
     if (results.image) {
-        canvasCtx.translate(canvasElement.width, 0); // Mirror horizontally
+        canvasCtx.translate(canvasElement.width, 0); 
         canvasCtx.scale(-1, 1);
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
     }
-    canvasCtx.restore();
+    
+    if(!examActive || isScanningRoom) {
+        canvasCtx.restore();
+        return;
+    }
 
-    if(!examActive) return;
+    // === RUN OBJECT DETECTION ===
+    // We run it every 15 frames to maintain high 60fps for Face tracking but still catch objects rapidly ~4 times a second
+    objectDetectionFrameCount++;
+    if (isTfReady && objectDetectionFrameCount % 15 === 0) {
+        cocoModel.detect(videoElement).then(predictions => {
+            let prohibitedObj = null;
+            predictions.forEach(pred => {
+                // Objects to strictly forbid: cell phone, book, laptop (if looking via mirror)
+                if (['cell phone', 'book', 'laptop', 'tablet'].includes(pred.class)) {
+                    if (pred.score > 0.55) prohibitedObj = pred.class;
+                }
+            });
+            
+            if (prohibitedObj) {
+                // Instantly overlay warnings and increase suspicion
+                uiWarningOverlay.classList.remove('hidden');
+                uiWarningText.innerText = `UNAUTHORIZED: ${prohibitedObj.toUpperCase()}`;
+                
+                // Draw bounding boxes natively later if we wanted
+                canvasCtx.fillStyle = 'rgba(245, 158, 11, 0.4)';
+                canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+                
+                increaseSuspicion(34, `Detected prohibited object (${prohibitedObj}) in camera view.`);
+                setTimeout(() => { if (!isScanningRoom) uiWarningOverlay.classList.add('hidden'); }, 1500);
+            }
+        });
+    }
 
+    canvasCtx.restore(); // Restore context to draw face tracking UI properly if needed
+
+    // === FATAL/SOFT FACE ANOMALIES ===
     let warning = "";
     let detReason = "";
 
@@ -200,56 +332,48 @@ faceMesh.onResults((results) => {
     } else {
         const landmarks = results.multiFaceLandmarks[0];
         
-        // Exact eye gaze tracking (Iris vs Eye boundaries)
-        const leftIris = landmarks[468]; // Center of left iris
+        const leftIris = landmarks[468]; 
         const leftEyeInner = landmarks[133]; 
         const leftEyeOuter = landmarks[33];  
-
-        // Heuristic distance ratio for horizontal gaze
         const irisPos = (leftIris.x - leftEyeOuter.x) / (leftEyeInner.x - leftEyeOuter.x);
         
-        // Head pose rough bounds
         const nose = landmarks[1];
         const leftCheek = landmarks[234];
         const rightCheek = landmarks[454];
-        
         const distLeft = Math.abs(nose.x - leftCheek.x);
         const distRight = Math.abs(nose.x - rightCheek.x);
 
-        if (distLeft > distRight * 2.8) {
-            warning = "LOOKING AWAY";
-            detReason = "Head turned right.";
-        } else if (distRight > distLeft * 2.8) {
-            warning = "LOOKING AWAY";
-            detReason = "Head turned left.";
-        } else if (irisPos < 0.25) {
-            warning = "EYE MOVEMENT DETECTED";
-            detReason = "Gaze deviated severely right (screen relative).";
-        } else if (irisPos > 0.75) {
-            warning = "EYE MOVEMENT DETECTED";
-            detReason = "Gaze deviated severely left (screen relative).";
+        if (distLeft > distRight * 3.0) {
+            warning = "LOOKING AWAY"; detReason = "Head turned right.";
+        } else if (distRight > distLeft * 3.0) {
+            warning = "LOOKING AWAY"; detReason = "Head turned left.";
+        } else if (irisPos < 0.20) {
+            warning = "EYE MOVEMENT DETECTED"; detReason = "Gaze deviated severely right.";
+        } else if (irisPos > 0.80) {
+            warning = "EYE MOVEMENT DETECTED"; detReason = "Gaze deviated severely left.";
         }
     }
 
-    // Debounce to avoid flashing (trigger UI after 15 solid frames of cheating ~ 500ms)
+    // Debounce to avoid flashing (trigger UI after 15 solid frames)
     if (warning !== "") {
         aiWarningDebounce++;
         if(aiWarningDebounce > 15) {
             if(currentAIWarning !== warning) {
-                addLog(`AI PROCTOR: ${warning} - ${detReason}`, true);
+                addLog(`AI PROCTOR: ${warning}`, true);
                 currentAIWarning = warning;
             }
             uiWarningOverlay.classList.remove('hidden');
             uiWarningText.innerText = warning;
-            setUISystemStatus(true, "AI Vision Alert!");
+            if(!isScanningRoom) setUISystemStatus(true, "AI Vision Alert!");
             
             // Apply red tint to canvas
-            canvasCtx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+            canvasCtx.fillStyle = 'rgba(239, 68, 68, 0.2)';
             canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
             
-            // If user stares away for 90 concurrent frames (~3 seconds), strike them.
-            if (aiWarningDebounce === 90) {
-                triggerViolation("PROLONGED_VISION_ALERT", `AI tracked prolonged violation: ${detReason}`);
+            // If user stares away for 60 concurrent frames (~2 seconds), increase suspicion
+            if (aiWarningDebounce === 60) {
+                increaseSuspicion(25, `Prolonged irregular vision/face tracked: ${detReason}`);
+                aiWarningDebounce = 0; // reset to allow continuous accumulation
             }
         }
     } else {
@@ -259,7 +383,7 @@ faceMesh.onResults((results) => {
         }
         aiWarningDebounce = 0;
         uiWarningOverlay.classList.add('hidden');
-        setUISystemStatus(false);
+        if(!isScanningRoom && suspicionScore < 100) setUISystemStatus(false);
     }
 });
 
@@ -281,6 +405,7 @@ camera.start();
 
 startBtn.addEventListener('click', async () => {
     try {
+        // To deploy on Vercel properly, we need user interaction to request fullscreen.
         if (document.documentElement.requestFullscreen) {
             await document.documentElement.requestFullscreen();
         }
