@@ -459,16 +459,25 @@ camera.start();
 
 startBtn.addEventListener('click', async () => {
     try {
-        if ("Notification" in window) await Notification.requestPermission();
-        await activateAudioSurveillance(); // Hooks mic
+        // Browser Security: Fullscreen MUST be requested immediately upon the user click, before any async await yields.
         if (document.documentElement.requestFullscreen) {
             await document.documentElement.requestFullscreen();
         }
+        
+        // Request notifications without awaiting/blocking the UI entirely
+        if ("Notification" in window) {
+            Notification.requestPermission();
+        }
+        
+        // Request microphone access
+        await activateAudioSurveillance(); 
+        
         setupModal.classList.add('hidden');
         examActive = true;
         addLog('Environment verified. Max Security lock engaged.');
         startTimer();
     } catch (err) {
-        alert("Fullscreen, Mic, and Notification bounds are strictly enforced!");
+        console.error("Initialization Failed:", err);
+        alert("Fullscreen and Mic permissions are strictly enforced! Please reload and allow all permissions.");
     }
 });
