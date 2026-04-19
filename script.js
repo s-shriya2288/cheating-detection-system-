@@ -316,7 +316,7 @@ function checkAllModelsLoaded() {
         modelLoader.classList.add('hidden');
         setUISystemStatus(false, "System Ready");
     } else {
-        loaderText.innerText = "Loading Object Defense Neural Net...";
+        loaderText.innerText = "Loading Object Defense Neural Net (Please wait ~10s)...";
     }
 }
 
