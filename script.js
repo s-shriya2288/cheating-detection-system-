@@ -44,13 +44,83 @@ const videoElement = document.getElementById('input_video');
 const canvasElement = document.getElementById('output_canvas');
 const canvasCtx = canvasElement.getContext('2d');
 
+// ====== MAX SECURITY: AUDIO SURVEILLANCE ======
+let audioContext, analyser, microphone, javascriptNode;
+let audioWarningDebounce = 0;
+
+async function activateAudioSurveillance() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        microphone = audioContext.createMediaStreamSource(stream);
+        javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+        analyser.smoothingTimeConstant = 0.8;
+        analyser.fftSize = 1024;
+
+        microphone.connect(analyser);
+        analyser.connect(javascriptNode);
+        javascriptNode.connect(audioContext.destination);
+        
+        javascriptNode.onaudioprocess = function() {
+            if (!examActive || isScanningRoom) return;
+            const array = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(array);
+            let values = 0;
+            const length = array.length;
+            for (let i = 0; i < length; i++) {
+                values += (array[i]);
+            }
+            const average = values / length;
+
+            // Audio Threshold
+            if (average > 25) { // Highly sensitive microphone trigger
+                audioWarningDebounce++;
+                if (audioWarningDebounce > 30) { // ~ 1 second of noise
+                    increaseSuspicion(15, "UNAUTHORIZED AUDIO/TALKING.");
+                    
+                    uiWarningOverlay.classList.remove('hidden');
+                    uiWarningText.innerText = "NOISE DETECTED";
+                    setUISystemStatus(true, "Audio Alarm");
+                    
+                    setTimeout(() => { if (!isScanningRoom) uiWarningOverlay.classList.add('hidden'); }, 1500);
+                    audioWarningDebounce = 0;
+                }
+            } else {
+                audioWarningDebounce = 0; // Clear if silent
+            }
+        }
+        addLog("Audio microphone successfully hooked.");
+    } catch (e) {
+        alert("Audio recording permission is permanently required for MAX SECURITY! System failed to attach.");
+    }
+}
+
+// ====== MAX SECURITY: HARDWARE / DOM LOCKDOWN ======
+document.addEventListener('copy', (e) => { e.preventDefault(); triggerViolation("KEYBOARD_LOCK", "Copying payload intercepted."); });
+document.addEventListener('cut', (e) => { e.preventDefault(); triggerViolation("KEYBOARD_LOCK", "Cutting payload intercepted."); });
+document.addEventListener('paste', (e) => { e.preventDefault(); triggerViolation("KEYBOARD_LOCK", "Pasting payload intercepted."); });
+
+document.addEventListener('keydown', (e) => {
+    // Block F12, Ctrl+Shift+I, Option+Cmd+I, Ctrl+U
+    if(e.keyCode === 123 || 
+      (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74)) || 
+      (e.ctrlKey && e.keyCode === 85) || 
+      (e.metaKey && e.altKey && e.keyCode === 73)) {
+        e.preventDefault();
+        triggerViolation("DEV_TOOLS_LOCK", "Developer Mode tampering attempt recorded.");
+    }
+});
+
+
 // Timer (2 Minutes)
 let timeLeft = 2 * 60;
 let timerInterval;
 
 function startTimer() {
     timerInterval = setInterval(() => {
-        if(!examActive || isScanningRoom) return; // Pause timer during room scan? Optional, let's let it run but UI says something.
+        if(!examActive || isScanningRoom) return; 
         timeLeft--;
         
         if (timeLeft <= 0) {
@@ -83,7 +153,7 @@ function setUISystemStatus(isDanger, text) {
         statusText.innerText = text || "System Alert!";
     } else {
         statusPill.className = "status-pill safe";
-        statusText.innerText = text || "System Active - AI Tracking On";
+        statusText.innerText = text || "System Active - Audio/Video Monitored";
     }
 }
 
@@ -105,7 +175,7 @@ function increaseSuspicion(amount, reason) {
         suspicionFill.style.background = 'var(--danger)';
     }
 
-    addLog(`SUSPICION INCREASED [+${amount}%]: ${reason}`, true);
+    addLog(`SUSPICION LEVEL [${suspicionScore}%]: ${reason}`, true);
     
     if (suspicionScore === 100) {
         triggerRoomScan(reason);
@@ -117,7 +187,7 @@ function triggerRoomScan(reason) {
     examContainer.classList.add('blurred');
     roomScanModal.classList.remove('hidden');
     scanReason.innerText = `Suspicion maxed out due to: ${reason}`;
-    addLog(`ROOM SCAN MANDATED: Threshold reached.`, true);
+    addLog(`ROOM SCAN MANDATE ENFORCED.`, true);
     setUISystemStatus(true, "Scan Required");
 }
 
@@ -144,7 +214,7 @@ startScanBtn.addEventListener('click', () => {
 
 function completeRoomScan() {
     isScanningRoom = false;
-    suspicionScore = 0; // Reset suspicion after scan
+    suspicionScore = 0; 
     suspicionPercent.innerText = "0%";
     suspicionFill.style.width = "0%";
     suspicionFill.style.background = 'var(--success)';
@@ -156,7 +226,7 @@ function completeRoomScan() {
     
     roomScanModal.classList.add('hidden');
     examContainer.classList.remove('blurred');
-    addLog("ROOM SCAN COMPLETE. Exam resuming.");
+    addLog("ROOM SCAN APPROVED. Max Security logic resuming.");
     setUISystemStatus(false);
 }
 
@@ -176,10 +246,11 @@ function terminateExam(reasonString) {
     endPanel.classList.remove('hidden');
     termReason.innerText = reasonString;
     addLog(`EXAM LOCKED: ${reasonString}`, true);
-    setUISystemStatus(true, "Exam Over");
+    setUISystemStatus(true, "Exam Terminated");
     
     const stream = videoElement.srcObject;
     if (stream) stream.getTracks().forEach(track => track.stop());
+    if (audioContext) audioContext.close();
 }
 
 // Trigger Hard Cheating Violation (Dom events)
@@ -189,7 +260,7 @@ function triggerViolation(code, msg) {
     addLog(`STRIKE ${strikes}/${MAX_STRIKES} [${code}]: ${msg}`, true);
     
     if (strikes >= MAX_STRIKES) {
-        terminateExam("Auto-terminated due to exceeding maximum cheating violation strikes (3/3). You are locked out.");
+        terminateExam("Auto-terminated due to maximum security violations (3/3). Authority Notified.");
         return;
     }
     
@@ -202,15 +273,15 @@ function triggerViolation(code, msg) {
 }
 
 document.addEventListener("visibilitychange", () => {
-    if (examActive && document.visibilityState === 'hidden') triggerViolation("TAB_SWITCH", "You switched tabs or minimized the browser.");
+    if (examActive && document.visibilityState === 'hidden') triggerViolation("TAB_SWITCH", "You switched tabs or lost browser focus.");
 });
 
 window.addEventListener("blur", () => {
-    if (examActive && !isScanningRoom) triggerViolation("WINDOW_BLUR", "You clicked outside the exam window.");
+    if (examActive && !isScanningRoom) triggerViolation("WINDOW_BLUR", "Foreground application disrupted. Focus lost.");
 });
 
 document.addEventListener("fullscreenchange", () => {
-    if (examActive && !document.fullscreenElement && !isScanningRoom) triggerViolation("FULLSCREEN_EXIT", "You attempted to exit fullscreen mode.");
+    if (examActive && !document.fullscreenElement && !isScanningRoom) triggerViolation("FULLSCREEN_EXIT", "Attempted to break fullscreen confinement.");
 });
 
 resumeBtn.addEventListener('click', async () => {
@@ -223,7 +294,7 @@ resumeBtn.addEventListener('click', async () => {
         addLog('User acknowledged violation and resumed.');
         setUISystemStatus(false);
     } catch (err) {
-        alert("You must allow fullscreen to resume!");
+        alert("Fullscreen confinement rigidly required!");
     }
 });
 
@@ -238,14 +309,14 @@ function checkAllModelsLoaded() {
     modelsLoadedCount++;
     if (modelsLoadedCount === 2) {
         startBtn.disabled = false;
-        startBtn.innerText = "Enter Secure Fullscreen & Start";
+        startBtn.innerText = "Activate Security Payload & Start";
         startBtn.style.background = 'var(--primary)';
         startBtn.style.cursor = 'pointer';
         startBtn.classList.add('glow-effect');
         modelLoader.classList.add('hidden');
-        setUISystemStatus(false, "System Ready (Face + Object Tracking)");
+        setUISystemStatus(false, "System Ready");
     } else {
-        loaderText.innerText = "Loading Object Detection Pipeline...";
+        loaderText.innerText = "Loading Object Defense Neural Net...";
     }
 }
 
@@ -253,7 +324,6 @@ function checkAllModelsLoaded() {
 cocoSsd.load().then(model => {
     cocoModel = model;
     isTfReady = true;
-    console.log("COCO-SSD Loaded");
     checkAllModelsLoaded();
 });
 
@@ -261,21 +331,10 @@ cocoSsd.load().then(model => {
 const faceMesh = new FaceMesh({locateFile: (file) => {
     return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
 }});
-
-faceMesh.setOptions({
-    maxNumFaces: 2,
-    refineLandmarks: true, 
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-});
-
+faceMesh.setOptions({ maxNumFaces: 2, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
 faceMesh.onResults((results) => {
-    if (!startBtn.disabled && modelsLoadedCount < 2) {
-        // Just in case MediaPipe loads first but TF hasn't yet, we defer the count logic
-        checkAllModelsLoaded(); // FaceMesh doesn't have a strict load() promise, the first frame means it's ready.
-    }
+    if (!startBtn.disabled && modelsLoadedCount < 2) checkAllModelsLoaded();
 
-    // Draw video to canvas (Mirrored)
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     if (results.image) {
@@ -284,54 +343,39 @@ faceMesh.onResults((results) => {
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
     }
     
-    if(!examActive || isScanningRoom) {
-        canvasCtx.restore();
-        return;
-    }
+    if(!examActive || isScanningRoom) { canvasCtx.restore(); return; }
 
-    // === RUN OBJECT DETECTION ===
-    // We run it every 15 frames to maintain high 60fps for Face tracking but still catch objects rapidly ~4 times a second
     objectDetectionFrameCount++;
-    if (isTfReady && objectDetectionFrameCount % 15 === 0) {
+    if (isTfReady && objectDetectionFrameCount % 10 === 0) {
         cocoModel.detect(videoElement).then(predictions => {
             let prohibitedObj = null;
             predictions.forEach(pred => {
-                // Objects to strictly forbid: cell phone, book, laptop (if looking via mirror)
-                if (['cell phone', 'book', 'laptop', 'tablet'].includes(pred.class)) {
-                    if (pred.score > 0.55) prohibitedObj = pred.class;
+                if (['cell phone', 'book', 'laptop', 'tablet', 'tv'].includes(pred.class)) {
+                    if (pred.score > 0.50) prohibitedObj = pred.class;
                 }
             });
             
             if (prohibitedObj) {
-                // Instantly overlay warnings and increase suspicion
                 uiWarningOverlay.classList.remove('hidden');
                 uiWarningText.innerText = `UNAUTHORIZED: ${prohibitedObj.toUpperCase()}`;
-                
-                // Draw bounding boxes natively later if we wanted
-                canvasCtx.fillStyle = 'rgba(245, 158, 11, 0.4)';
+                canvasCtx.fillStyle = 'rgba(239, 68, 68, 0.4)'; // red tint
                 canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
-                
-                increaseSuspicion(34, `Detected prohibited object (${prohibitedObj}) in camera view.`);
+                increaseSuspicion(45, `Detected prohibited object (${prohibitedObj}) in camera view.`);
                 setTimeout(() => { if (!isScanningRoom) uiWarningOverlay.classList.add('hidden'); }, 1500);
             }
         });
     }
 
-    canvasCtx.restore(); // Restore context to draw face tracking UI properly if needed
+    canvasCtx.restore();
 
     // === FATAL/SOFT FACE ANOMALIES ===
-    let warning = "";
-    let detReason = "";
-
+    let warning = ""; let detReason = "";
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-        warning = "NO FACE DETECTED";
-        detReason = "Camera cannot see candidate.";
+        warning = "NO FACE DETECTED"; detReason = "Physical absence detected.";
     } else if (results.multiFaceLandmarks.length > 1) {
-        warning = "MULTIPLE FACES DETECTED";
-        detReason = "Unrecognized person in frame.";
+        warning = "MULTIPLE FACES DETECTED"; detReason = "External presence breach.";
     } else {
         const landmarks = results.multiFaceLandmarks[0];
-        
         const leftIris = landmarks[468]; 
         const leftEyeInner = landmarks[133]; 
         const leftEyeOuter = landmarks[33];  
@@ -344,41 +388,38 @@ faceMesh.onResults((results) => {
         const distRight = Math.abs(nose.x - rightCheek.x);
 
         if (distLeft > distRight * 3.0) {
-            warning = "LOOKING AWAY"; detReason = "Head turned right.";
+            warning = "LOOKING AWAY"; detReason = "Head posture shifted right.";
         } else if (distRight > distLeft * 3.0) {
-            warning = "LOOKING AWAY"; detReason = "Head turned left.";
+            warning = "LOOKING AWAY"; detReason = "Head posture shifted left.";
         } else if (irisPos < 0.20) {
-            warning = "EYE MOVEMENT DETECTED"; detReason = "Gaze deviated severely right.";
+            warning = "EYE TRACKING ALERT"; detReason = "Iris tracking severe derivation right.";
         } else if (irisPos > 0.80) {
-            warning = "EYE MOVEMENT DETECTED"; detReason = "Gaze deviated severely left.";
+            warning = "EYE TRACKING ALERT"; detReason = "Iris tracking severe derivation left.";
         }
     }
 
-    // Debounce to avoid flashing (trigger UI after 15 solid frames)
     if (warning !== "") {
         aiWarningDebounce++;
-        if(aiWarningDebounce > 15) {
+        if(aiWarningDebounce > 10) { // FASTER reaction ~ 300ms
             if(currentAIWarning !== warning) {
                 addLog(`AI PROCTOR: ${warning}`, true);
                 currentAIWarning = warning;
             }
             uiWarningOverlay.classList.remove('hidden');
             uiWarningText.innerText = warning;
-            if(!isScanningRoom) setUISystemStatus(true, "AI Vision Alert!");
+            if(!isScanningRoom) setUISystemStatus(true, "Vision Protocol Alert");
             
-            // Apply red tint to canvas
             canvasCtx.fillStyle = 'rgba(239, 68, 68, 0.2)';
             canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
             
-            // If user stares away for 60 concurrent frames (~2 seconds), increase suspicion
-            if (aiWarningDebounce === 60) {
-                increaseSuspicion(25, `Prolonged irregular vision/face tracked: ${detReason}`);
-                aiWarningDebounce = 0; // reset to allow continuous accumulation
+            // Lock onto Suspicion fast
+            if (aiWarningDebounce % 45 === 0) { // every ~ 1.5 second
+                increaseSuspicion(25, `${detReason}`);
             }
         }
     } else {
         if (currentAIWarning !== "") {
-            addLog(`AI PROCTOR: Vision clear.`);
+            addLog(`AI PROCTOR: Gaze recovered.`);
             currentAIWarning = "";
         }
         aiWarningDebounce = 0;
@@ -387,33 +428,25 @@ faceMesh.onResults((results) => {
     }
 });
 
-// Setup Camera Flow
 const camera = new Camera(videoElement, {
   onFrame: async () => {
-    try {
-        await faceMesh.send({image: videoElement});
-    } catch(err) {
-        console.error("Camera processing error", err);
-    }
-  },
-  width: 640,
-  height: 480
+    try { await faceMesh.send({image: videoElement}); } 
+    catch(err) {} 
+  }, width: 640, height: 480
 });
-
-// Init on load
 camera.start();
 
 startBtn.addEventListener('click', async () => {
     try {
-        // To deploy on Vercel properly, we need user interaction to request fullscreen.
+        await activateAudioSurveillance(); // Hooks mic
         if (document.documentElement.requestFullscreen) {
             await document.documentElement.requestFullscreen();
         }
         setupModal.classList.add('hidden');
         examActive = true;
-        addLog('Environment verified. Security lock initiated.');
+        addLog('Environment verified. Max Security lock engaged.');
         startTimer();
     } catch (err) {
-        alert("Fullscreen is required to start the exam!");
+        alert("Fullscreen and Mic bounds are strictly enforced!");
     }
 });

@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ProctorGuard™ - Vercel Edge AI Exam System</title>
+    <title>ProctorGuard™ - MAX SECURITY Vercel System</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     
-    <!-- MediaPipe Client-Side Libraries (Vercel Compatible) -->
+    <!-- MediaPipe Client-Side Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     
-    <!-- TensorFlow JS & COCO SSD for Advanced Object Detection -->
+    <!-- TensorFlow JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd" crossorigin="anonymous"></script>
 </head>
-<body>
+<body oncontextmenu="return false;" style="user-select: none;">
     <div class="exam-container" id="exam-container">
         <!-- Dashboard Header -->
         <header class="exam-header">
-            <div class="logo">ProctorGuar<span class="highlight">d</span>™ <span style="font-size: 0.6em; color: var(--text-muted); background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; margin-left:10px;">EDGE AI</span></div>
+            <div class="logo">ProctorGuar<span class="highlight">d</span>™ <span style="font-size: 0.6em; color: white; background: var(--danger); padding: 2px 6px; border-radius: 4px; margin-left:10px;">MAX SECURITY</span></div>
             <div class="header-center">
                <div class="timer">Time Remaining: <span id="time" class="pulse-text">02:00</span></div>
             </div>
@@ -37,8 +37,9 @@
                     <div class="q-header">
                         <span class="q_num">Question 1 <span class="dim">of 50</span></span>
                         <div class="q-badges">
-                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--primary);">Object Tracking Active</span>
-                            <span class="badge difficulty-medium">Strict Proctoring Mode</span>
+                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">🎙️ Audio Monitored</span>
+                            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--primary);">📱 Object AI Actve</span>
+                            <span class="badge difficulty-medium">🔒 Keyboard Locked</span>
                         </div>
                     </div>
                     
@@ -84,17 +85,17 @@
             <aside class="proctor-panel">
                 <div class="panel-section video-section glass-panel">
                     <div class="section-header">
-                        <h3>Live Edge AI Proctor</h3>
-                        <span class="live-badge">LIVE</span>
+                        <h3>Live Max Proctor</h3>
+                        <span class="live-badge">LIVE SURVEILLANCE</span>
                     </div>
                     <div class="video-wrapper">
-                        <!-- Client-side Video Canvas for MediaPipe & TensorFlow -->
+                        <!-- Client-side Video Canvas -->
                         <video id="input_video" class="hidden" autoplay playsinline></video>
                         <canvas id="output_canvas" width="640" height="480"></canvas>
                         
                         <div id="ui-warning-overlay" class="overlay hidden">
-                            <div class="warning-icon">👁️</div>
-                            <div id="ui-warning-text">Violation</div>
+                            <div class="warning-icon">🚨</div>
+                            <div id="ui-warning-text" style="font-size: 1.4rem;">Violation</div>
                         </div>
                     </div>
                     
@@ -111,16 +112,16 @@
                     <!-- Loading state for models -->
                     <div id="model-loader" class="loader-box">
                         <div class="spinner"></div>
-                        <span id="loader-text">Loading FaceMesh...</span>
+                        <span id="loader-text">Loading Max Security AI...</span>
                     </div>
                     <div id="status-indicator" class="status-pill safe hidden">
                         <div class="pulse-dot"></div>
-                        <span id="status-text">System Active - Monitoring</span>
+                        <span id="status-text">System Active - Audio/Video Monitoring</span>
                     </div>
                 </div>
 
                 <div class="panel-section logs-section glass-panel">
-                    <h3>Anomaly Logs</h3>
+                    <h3>Critical Event Logs</h3>
                     <ul id="log-list">
                         <li><span class="time">Sys</span> Application mounted.</li>
                     </ul>
@@ -132,9 +133,9 @@
     <!-- Cheating warning modal (3 Strikes) -->
     <div id="violation-modal" class="modal hidden">
         <div class="modal-content glass-panel error-panel">
-            <h2 class="alert-text">⚠️ SECURITY VIOLATION DETECTED ⚠️</h2>
-            <p id="modal-violation-reason">You have switched tabs or lost window focus!</p>
-            <p class="penalty-text" id="strike-text">Strike 1 of 3. Continued violations will result in auto-termination of the exam.</p>
+            <h2 class="alert-text" style="font-size:2rem; font-weight:900;">🚨 SECURITY COMPROMISE 🚨</h2>
+            <p id="modal-violation-reason" style="font-size: 1.2rem;">You have switched tabs or lost window focus!</p>
+            <p class="penalty-text" id="strike-text" style="color:var(--warning); font-weight:bold;">Strike 1 of 3. Continued violations will result in exam termination.</p>
             <button id="resume-btn" class="btn primary btn-large">Acknowledge & Return</button>
         </div>
     </div>
@@ -146,7 +147,7 @@
             <h2 style="color: var(--warning);">ENVIRONMENT SCAN REQUIRED</h2>
             <p id="scan-reason">High suspicion threshold reached.</p>
             <p style="margin-top: 15px; font-weight: 500; font-size: 1.1rem; line-height: 1.5;">
-                Due to recent anomalies (such as detecting a phone, book, or prolonged eye movements), you must prove the integrity of your environment.
+                Due to recent anomalies, you must prove the integrity of your environment. No speaking allowed.
                 <br><br>
                 Please pick up your webcam or laptop and <b>slowly pan it 360-degrees around your entire desk and room setup.</b>
             </p>
@@ -165,15 +166,16 @@
     <div id="setup-modal" class="modal">
         <div class="modal-content glass-panel">
             <div class="logo" style="margin-bottom: 20px;">ProctorGuar<span class="highlight">d</span>™</div>
-            <h2>Welcome to Secure Assessment</h2>
-            <p style="color: var(--text-muted); margin-bottom: 20px;">This exam requires strict proctoring and runs entirely in your browser using Edge AI.</p>
+            <h2>MAX SECURITY PROTOCOL</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">By proceeding, you agree to extreme military-grade proctoring.</p>
             <ul class="req-list">
-                <li>📱 <b>Object Tracking</b> (Phones and books flag instantly)</li>
-                <li>👁️ <b>Eye Tracking Active</b> (Do not stare off-screen)</li>
-                <li>📸 <b>Room Scans</b> (May randomly trigger if suspicious)</li>
-                <li>🔒 <b>Window Lockdown</b> (3 strikes max)</li>
+                <li>🎙️ <b>Audio Surveillance</b> (Silence required)</li>
+                <li>📱 <b>Object Tracking</b> (No phones, no books)</li>
+                <li>👁️ <b>Eye Gaze Guard</b> (Do not look off-screen)</li>
+                <li>⌨️ <b>Keyboard/Mouse Lock</b> (No Copy, No Paste, No Cmd/Ctrl)</li>
+                <li>🔒 <b>Window Lockdown</b> (3 strikes = fail)</li>
             </ul>
-            <button id="start-exam-btn" class="btn primary btn-large" disabled style="background: var(--secondary); cursor: not-allowed;">Loading Neural Networks...</button>
+            <button id="start-exam-btn" class="btn primary btn-large" disabled style="background: var(--secondary); cursor: not-allowed;">Loading Zero-Trust Models...</button>
         </div>
     </div>
 
